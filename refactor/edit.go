@@ -261,10 +261,7 @@ func (s *Snapshot) currentBytes(name string) []byte {
 
 // oldBytes returns the original text of the given file, prior to any edits.
 func (s *Snapshot) oldBytes(name string) []byte {
-	for s.parent != nil {
-		s = s.parent
-	}
-	f := s.files[name]
+	f := s.base.files[name]
 	if f == nil {
 		return nil
 	}

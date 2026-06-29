@@ -36,7 +36,7 @@ const (
 // A Snapshot is a base set of Packages and their parsed source files, plus a
 // set of concurrent edits to be made to those files.
 type Snapshot struct {
-	parent   *Snapshot
+	base     *Snapshot
 	fset     *token.FileSet
 	target   *Package
 	packages []*Package
@@ -678,9 +678,13 @@ func (r *Refactor) Apply() error {
 }
 
 func (oldS *Snapshot) apply() (*Snapshot, error) {
+	base := oldS.base
+	if base == nil {
+		base = oldS // oldS is the base
+	}
 	s := &Snapshot{
 		r:        oldS.r,
-		parent:   oldS,
+		base:     base,
 		fset:     oldS.fset,
 		edits:    make(map[string]*Edit),
 		pkgGraph: newPkgGraph(oldS.pkgGraph.name),
@@ -1036,18 +1040,17 @@ func (r *Refactor) MergeSnapshots() (*Snapshot, error) {
 		files: make(map[string]*File),
 	}
 	ms := &Snapshot{
-		parent: base,
-		r:      r,
-		files:  make(map[string]*File),
+		base:  base,
+		r:     r,
+		files: make(map[string]*File),
 	}
 	for _, s := range r.snapshots {
 		merge(ms, s, true)
-
-		parent := s
-		for parent.parent != nil {
-			parent = parent.parent
+		sbase := s.base
+		if sbase == nil {
+			sbase = s // s is the base, so use s itself
 		}
-		merge(base, parent, false)
+		merge(base, sbase, false)
 	}
 	if failed {
 		return nil, fmt.Errorf("refactoring diverged")
