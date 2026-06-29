@@ -183,7 +183,6 @@ func (s *Snapshot) CreateFile(p *Package, baseName, text string) *ast.File {
 	if text == "" {
 		text = "package " + p.Name + "\n"
 	}
-	base := s.fset.Base()
 
 	file, err := s.r.cache.newFileText(name, []byte(text), true)
 	if err != nil {
@@ -193,7 +192,7 @@ func (s *Snapshot) CreateFile(p *Package, baseName, text string) *ast.File {
 	ed := &Edit{
 		Name:   name,
 		Create: true,
-		Buffer: NewBufferAt(s, token.Pos(base), []byte(text)),
+		Buffer: NewBufferAt(s, file.Syntax.FileStart, []byte(text)),
 		File:   file,
 	}
 	if s.files[file.Name] != nil || s.edits[file.Name] != nil {

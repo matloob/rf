@@ -972,16 +972,16 @@ func (r *Refactor) MergeSnapshots() (*Snapshot, error) {
 			if ed := s.edits[name]; doEdits && ed != nil {
 				if ed.Delete {
 					f = &File{
-						Name:    f.Name,
+						Name:    name,
 						Deleted: true,
 					}
 				} else {
 					text, err := ed.NewText()
 					if err != nil {
-						errs.Add(fmt.Errorf("%s: %v", f.Name, err))
+						errs.Add(fmt.Errorf("%s: %v", name, err))
 						continue
 					}
-					f, err = r.cache.newFileText(f.Name, text, true)
+					f, err = r.cache.newFileText(name, text, true)
 					if err != nil {
 						// TODO: If we failed with a parse error and are trying
 						// to merge snapshots to report the diff, we'll get a

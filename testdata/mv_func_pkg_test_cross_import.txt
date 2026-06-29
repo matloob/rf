@@ -1,0 +1,62 @@
+# m/x's test imports m/y and m/y's test imports m/x.
+# When rf loads tests, it creates graphs for each
+# test when there are test variants of the test's dependencies.
+# rf tries to merge the graphs but it can't in this case
+# because there would be an import cycle, which means
+# there are multiple snapshots.
+# Test the case of moving a function to another package
+# when there are multiple snapshots.
+mv F m/q
+-- m.go --
+package m
+
+import "m/q"
+
+func F() int {
+	return q.Q
+}
+-- q/q.go --
+package q
+
+var Q int
+-- x/x.go --
+package x
+
+import "m/q"
+
+var X = q.Q
+-- x/x_test.go --
+package x
+
+import _ "m/y"
+-- y/y.go --
+package y
+
+import "m/q"
+
+var Y = q.Q
+-- y/y_test.go --
+package y
+
+import _ "m/x"
+-- stdout --
+diff old/m.go new/m.go
+--- old/m.go
++++ new/m.go
+@@ -1,7 +1 @@
+ package m
+-
+-import "m/q"
+-
+-func F() int {
+-	return q.Q
+-}
+diff old/q/m.go new/q/m.go
+--- old/q/m.go
++++ new/q/m.go
+@@ -0,0 +1,5 @@
++package q
++
++func F() int {
++	return Q
++}
