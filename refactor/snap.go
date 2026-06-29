@@ -670,6 +670,10 @@ func (r *Refactor) Apply() error {
 		return err
 	}
 	r.snapshots = newSnapshots
+
+	// prune the cache based on the new snapshots.
+	r.cache.pruneUnused()
+
 	return nil
 }
 
@@ -1052,6 +1056,37 @@ func (r *Refactor) MergeSnapshots() (*Snapshot, error) {
 		return nil, err
 	}
 	return ms, nil
+}
+
+// pruneUnused finds all reachable files and packages from the snapshot
+// and deletes the types of unreachable packages, and the unreachable files
+// from the cache. It must only be applied to the new set of snapshots
+// created by Apply.
+func (c *buildCache) pruneUnused() {
+	reachablePackages := make(map[string]bool)
+	reachableFiles := make(map[string]bool)
+	for _, s := range c.r.snapshots {
+		for _, f := range s.files {
+			reachableFiles[f.Hash] = true
+		}
+		for _, p := range s.packages {
+			reachablePackages[p.BuildID] = true
+			for _, f := range p.Files {
+				reachableFiles[f.Hash] = true
+			}
+		}
+	}
+
+	for k := range c.types {
+		if !reachablePackages[k] {
+			delete(c.types, k)
+		}
+	}
+	for k := range c.files {
+		if !reachableFiles[k] {
+			delete(c.files, k)
+		}
+	}
 }
 
 func (c *buildCache) newFile(name string) (*File, error) {
