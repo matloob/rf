@@ -297,9 +297,9 @@ func rewriteUses(snap *refactor.Snapshot, old *refactor.Item, new string, checkP
 	fix := func(pkg *refactor.Package, file *ast.File) {
 		refactor.Walk(file, func(stack []ast.Node) {
 			id, ok := stack[0].(*ast.Ident)
-			if !ok || pkg.TypesInfo.Uses[id] != old.Obj {
+			if !ok || origin(pkg.TypesInfo.Uses[id]) != origin(old.Obj) {
 				if len(stack) > 2 {
-					if as, ok := stack[1].(*ast.AssignStmt); ok && pkg.TypesInfo.Defs[id] == old.Obj && as.Tok != token.DEFINE {
+					if as, ok := stack[1].(*ast.AssignStmt); ok && origin(pkg.TypesInfo.Defs[id]) == origin(old.Obj) && as.Tok != token.DEFINE {
 						goto OK
 					}
 				}
