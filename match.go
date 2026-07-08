@@ -431,6 +431,9 @@ func (m *matcher) bindWildcard(xobj types.Object, y ast.Expr) bool {
 // assignableTo reports whether a value of type V is assignable to a variable of type T.
 // It's like types.AssignableTo, except it supports type parameters.
 func (m *matcher) assignableTo(V, T types.Type) bool {
+	V = types.Unalias(V)
+	T = types.Unalias(T)
+
 	// This code is based on go/types, but reordered somewhat
 	// to avoid multiple calls to identical, as we'd then need
 	// to handle saving and restoring the environment to avoid
@@ -489,6 +492,9 @@ func (m *matcher) isWildcardType(t types.Type) bool {
 
 // identical reports whether x and y are identical types.
 func (m *matcher) identical(x, y types.Type) bool {
+	x = types.Unalias(x)
+	y = types.Unalias(y)
+
 	if x == y {
 		return true
 	}
