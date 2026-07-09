@@ -150,6 +150,9 @@ func run(rf *refactor.Refactor, script string) error {
 				resets++
 				resetErrs.Add(err)
 				continue
+			default:
+				// Usually this means the operation is unimplemented.
+				return err
 			}
 
 			if err := snap.Errors.Err(); err != nil {

@@ -36,7 +36,7 @@ const (
 // A Snapshot is a base set of Packages and their parsed source files, plus a
 // set of concurrent edits to be made to those files.
 type Snapshot struct {
-	parent   *Snapshot
+	base     *Snapshot
 	fset     *token.FileSet
 	target   *Package
 	packages []*Package
@@ -670,13 +670,21 @@ func (r *Refactor) Apply() error {
 		return err
 	}
 	r.snapshots = newSnapshots
+
+	// prune the cache based on the new snapshots.
+	r.cache.pruneUnused()
+
 	return nil
 }
 
 func (oldS *Snapshot) apply() (*Snapshot, error) {
+	base := oldS.base
+	if base == nil {
+		base = oldS // oldS is the base
+	}
 	s := &Snapshot{
 		r:        oldS.r,
-		parent:   oldS,
+		base:     base,
 		fset:     oldS.fset,
 		edits:    make(map[string]*Edit),
 		pkgGraph: newPkgGraph(oldS.pkgGraph.name),
@@ -972,16 +980,16 @@ func (r *Refactor) MergeSnapshots() (*Snapshot, error) {
 			if ed := s.edits[name]; doEdits && ed != nil {
 				if ed.Delete {
 					f = &File{
-						Name:    f.Name,
+						Name:    name,
 						Deleted: true,
 					}
 				} else {
 					text, err := ed.NewText()
 					if err != nil {
-						errs.Add(fmt.Errorf("%s: %v", f.Name, err))
+						errs.Add(fmt.Errorf("%s: %v", name, err))
 						continue
 					}
-					f, err = r.cache.newFileText(f.Name, text, true)
+					f, err = r.cache.newFileText(name, text, true)
 					if err != nil {
 						// TODO: If we failed with a parse error and are trying
 						// to merge snapshots to report the diff, we'll get a
@@ -1032,18 +1040,17 @@ func (r *Refactor) MergeSnapshots() (*Snapshot, error) {
 		files: make(map[string]*File),
 	}
 	ms := &Snapshot{
-		parent: base,
-		r:      r,
-		files:  make(map[string]*File),
+		base:  base,
+		r:     r,
+		files: make(map[string]*File),
 	}
 	for _, s := range r.snapshots {
 		merge(ms, s, true)
-
-		parent := s
-		for parent.parent != nil {
-			parent = parent.parent
+		sbase := s.base
+		if sbase == nil {
+			sbase = s // s is the base, so use s itself
 		}
-		merge(base, parent, false)
+		merge(base, sbase, false)
 	}
 	if failed {
 		return nil, fmt.Errorf("refactoring diverged")
@@ -1052,6 +1059,37 @@ func (r *Refactor) MergeSnapshots() (*Snapshot, error) {
 		return nil, err
 	}
 	return ms, nil
+}
+
+// pruneUnused finds all reachable files and packages from the snapshot
+// and deletes the types of unreachable packages, and the unreachable files
+// from the cache. It must only be applied to the new set of snapshots
+// created by Apply.
+func (c *buildCache) pruneUnused() {
+	reachablePackages := make(map[string]bool)
+	reachableFiles := make(map[string]bool)
+	for _, s := range c.r.snapshots {
+		for _, f := range s.files {
+			reachableFiles[f.Hash] = true
+		}
+		for _, p := range s.packages {
+			reachablePackages[p.BuildID] = true
+			for _, f := range p.Files {
+				reachableFiles[f.Hash] = true
+			}
+		}
+	}
+
+	for k := range c.types {
+		if !reachablePackages[k] {
+			delete(c.types, k)
+		}
+	}
+	for k := range c.files {
+		if !reachableFiles[k] {
+			delete(c.files, k)
+		}
+	}
 }
 
 func (c *buildCache) newFile(name string) (*File, error) {

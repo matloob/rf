@@ -23,6 +23,8 @@ func transplant(snap *refactor.Snapshot, code string, src, dst token.Pos, moves 
 	}
 	dstPkg := snap.PackageAt(dst)
 
+	importNames := namedImports(srcFile)
+
 	ed := refactor.NewBufferAt(snap, src, []byte(code))
 	refactor.WalkRange(srcFile, src, src+token.Pos(len(code)), func(stack []ast.Node) {
 		id, ok := stack[0].(*ast.Ident)
@@ -59,7 +61,7 @@ func transplant(snap *refactor.Snapshot, code string, src, dst token.Pos, moves 
 				snap.ErrorAt(dst, "%s is already declared\n\t%s: previous declaration", id.Name, snap.Addr(found.Pos()))
 			}
 		} else {
-			name := snap.NeedImport(dst, "", objPkg)
+			name := snap.NeedImport(dst, importNames[objPkg.Path()], objPkg)
 			ed.Insert(id.Pos(), name+".")
 		}
 	})
@@ -307,6 +309,18 @@ func rewritePkgRefs(snap *refactor.Snapshot, moves map[types.Object]*refactor.Pa
 func isImportDecl(decl ast.Decl) bool {
 	d, ok := decl.(*ast.GenDecl)
 	return ok && d.Tok == token.IMPORT
+}
+
+// namedImports returns a map of all the named imports going from the name
+// to the import path.
+func namedImports(file *ast.File) map[string]string {
+	aliases := make(map[string]string)
+	for _, imp := range file.Imports {
+		if imp.Name != nil && imp.Name.Name != "." && imp.Name.Name != "_" {
+			aliases[importPath(imp)] = imp.Name.Name
+		}
+	}
+	return aliases
 }
 
 func declRange(snap *refactor.Snapshot, obj types.Object) (pos, end token.Pos) {

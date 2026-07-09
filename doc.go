@@ -6,7 +6,7 @@
 //
 // Usage:
 //
-//	rf [-diff] script
+//	rf [-diff] [-allplat] script
 //
 // Rf applies a script of refactoring commands to the package in the current directory.
 // For example, to unexport a field in a struct by renaming it:
@@ -15,6 +15,7 @@
 //
 // By default, rf writes changes back to the disk.
 // The -diff flag causes rf to print a diff of the intended changes instead.
+// The -allplat flag applies the refactoring across all GOOS/GOARCH combinations.
 //
 // A script is a sequence of commands, one per line.
 // Comments are introduced by # and extend to the end of the line.
@@ -134,16 +135,28 @@
 //
 //	add x.go func F() {}
 //
-// # The cp command
+// # The sub command
 //
-// The cp command is like mv (see below) but doesn't delete the source
-// and doesn't update any references. (UNIMPLEMENTED)
+// The sub command substitutes text to the source code. It takes as an argument the
+// thing that should be substituted, followed by the substitution text itself.
+//
+//	sub address text...
+//
+// The address may be a declaration, text range, or file.
+//
+// # The debug command
+//
+// The debug command sets debug options. The only option currently available is "trace".
+//
+//	debug trace
+//
+// debug trace will log each command as it's run.
 //
 // # The ex command
 //
 // The ex command applies rewrites based on example snippets.
 //
-//	ex { [imports] [declarations] old->new... }
+//	ex [pkg...] { [imports] [declarations] old->new... }
 //
 // The arguments to ex are interpreted as Go code consisting of a
 // sequence of imports and then a list of special “old -> new” rules.
@@ -165,6 +178,54 @@
 //		fmt.Sprintf("%v", s) -> s;
 //		fmt.Sprintf("%q", s) -> strconv.Quote(s)
 //	}
+//
+// The optional package addresses before the block can be used to restrict the
+// targets for the rewrites.
+//
+// The ex command also supports several pragma options that can be used in rules:
+//
+//   - avoid obj...: avoids rewriting inside the definition of the listed objects.
+//   - strict var...: requires strict type matching for the listed pattern variables.
+//   - implicit var...: treats the listed pattern variables as implicit conversions,
+//     matching only when the assignment context expects the variable's parameter type.
+//
+// For example, in:
+//
+//	ex {
+//		var x, y interface{}
+//		strict y
+//		x == y -> true
+//	}
+//
+// to match, the right side in an x == y expression must be an exact interface{} type.
+//
+// The "!" replacement can be used for an early termination of the matching logic. For a
+// "pattern -> !" rule, if the pattern matches, the rest of the example script will not be
+// applied.
+//
+// # The inject command
+//
+// The inject command adds a variable as a parameter to the given functions, and
+// threads it though all the functions it calls until it reaches a function that
+// uses the global variable with that name.
+//
+//	inject Var Func...
+//
+// For example, given
+//
+//	var Global int
+//
+//	func F() { G() }
+//	func G() { doSomethingWith(Global) }
+//	func main() { F() }
+//
+// then "inject G F" will produce the following:
+//
+//	var Global int
+//
+//	func F(Global int) { G(Global) }
+//	func G(Global int) { doSomethingWith(Global) }
+//	func main() { F(Global) }
 //
 // # The inline command
 //
@@ -356,6 +417,41 @@
 // Rm deletes the old code. All address forms are valid.
 // When deleting a declaration, rm also deletes line comments
 // immediately preceding it, up to a blank line.
+//
+// When removing a field from a multi-field declaration or a name from a
+// multi-name spec, rm removes only the targeted item, preserving the rest
+// of the declaration.
+//
+// # The typeassert command
+//
+// The typeassert command inserts type assertions based on ex patterns
+//
+//	typeassert { [imports] [declarations] pattern -> assertion... }
+//
+// typeassert uses ex patterns, but the patterns must always be of the form
+// x == y. typeassert finds all if statements or switch cases where the pattern
+// is checked to be true, and then inserts the type assertion in the body of
+// the if or into the switch case.
+//
+// For example, given the code
+//
+//	if x.Foo() == true {
+//		x.Bar()
+//	}
+//
+// and the typeassert invocation
+//
+//	typeassert {
+//		var x interface{}
+//		x.Foo() == true -> x.(Baz)
+//	}
+//
+// the example will be rewritten to
+//
+//		if x.Foo() == true {
+//			x := x.(Baz)
+//			x.Bar()
+//	 }
 //
 // # Bugs Bugs Bugs
 //
