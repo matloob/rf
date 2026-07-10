@@ -1,0 +1,35 @@
+ex {
+	var x T
+	strict x
+	F(x) -> G(x)
+}
+-- x.go --
+package m
+
+type T struct{ V int }
+
+type Alias = T
+
+func F(t T) int { return t.V }
+func G(t T) int { return t.V + 1 }
+
+func _() {
+	var a Alias
+	_ = F(a)
+	var t T
+	_ = F(t)
+}
+-- stdout --
+diff old/x.go new/x.go
+--- old/x.go
++++ new/x.go
+@@ -9,7 +9,7 @@
+
+ func _() {
+ 	var a Alias
+-	_ = F(a)
++	_ = G(a)
+ 	var t T
+-	_ = F(t)
++	_ = G(t)
+ }

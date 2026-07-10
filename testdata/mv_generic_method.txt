@@ -1,0 +1,30 @@
+mv S.F S.G
+-- x.go --
+package m
+
+type S[T any] struct {
+	v T
+}
+
+func (s S[T]) F() T { return s.v }
+
+func _() {
+	s := S[int]{v: 1}
+	_ = s.F()
+}
+-- stdout --
+diff old/x.go new/x.go
+--- old/x.go
++++ new/x.go
+@@ -4,9 +4,9 @@
+ 	v T
+ }
+
+-func (s S[T]) F() T { return s.v }
++func (s S[T]) G() T { return s.v }
+
+ func _() {
+ 	s := S[int]{v: 1}
+-	_ = s.F()
++	_ = s.G()
+ }
